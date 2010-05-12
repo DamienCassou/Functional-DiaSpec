@@ -3,6 +3,7 @@ module Main where
 import Text.ParserCombinators.Parsec
 import qualified Text.ParserCombinators.Parsec.Token as P
 import Text.ParserCombinators.Parsec.Language (haskellDef)
+import Control.Applicative hiding ((<|>),many)
 
 -- AST
 data Document = Document [Context]
@@ -16,8 +17,7 @@ data Context = Context { ctName :: String
                        , ctBehavioralContracts :: [BehavioralContract] }
              deriving Show
 
-data BehavioralContract = Pull { bcActivation :: String
-                               , bcDataRequirement :: String
+data BehavioralContract = Pull { bcDataRequirement :: String -- I guess you don't need bcActivation for Pull if it's always "self"
                                , bcEmission :: Emission
                                }
                         | Push { bcActivation :: String
@@ -37,6 +37,8 @@ lexeme = P.lexeme lexer
 symbol = P.symbol lexer
 natural = P.natural lexer
 parens = P.parens lexer
+angles = P.angles lexer
+braces = P.braces lexer
 semi = P.semi lexer
 identifier= P.identifier lexer
 reserved = P.reserved lexer
@@ -44,79 +46,35 @@ reservedOp= P.reservedOp lexer
 
 -- Parser
 document :: Parser Document
-document = do { contexts <- many context
-              ; return (Document contexts)
-              }
+document = Document <$> many context
 
 dataTypeRef :: Parser DataType
-dataTypeRef = do { reserved "Boolean"
-                 ; return Boolean
-                 }
-              <|>
-              do { reserved "Integer"
-                 ; return Integer
-                 }
+dataTypeRef =     (reserved "Boolean" *> return Boolean) 
+              <|> (reserved "Integer" *> return Integer)
               <?> "data type"
 
 emission :: Parser Emission
-emission = do { reserved "empty"
-              ; return EmitEmpty
-              }
-           <|>
-           do { reserved "self"
-              ;  do { try (char '?')
-                    ; return EmitSelfOpt
-                    }
-                 <|>
-                 do { return EmitSelf }
-              }
+emission =     (reserved "empty" *> return EmitEmpty)
+           <|> (reserved "self" *> (option EmitSelf (char '?' *> return EmitSelfOpt)))
 
 behavioralContract :: Parser BehavioralContract
-behavioralContract = 
-  do { char '<'
-     ; do { reserved "pull"
-          ; reserved "self"
-          ; semi
-          ; dataRequirement <- identifier
-          ; semi
-          ; emission <- emission
-          ; char '>'
-          ; return (Pull "self" dataRequirement emission)
-          }
-       <|>
-       do { reserved "push"
-          ; activation <- identifier
-          ; semi
-          ; dataRequirement <- identifier
-          ; semi
-          ; emission <- emission
-          ; char '>'
-          ; return (Push activation dataRequirement emission)
-          }
-     }
-       
-  
+behavioralContract = angles contract
+  where contract =     Pull <$> (reserved "pull" *> reserved "self" *> semi *> identifier) 
+                            <*> (semi *> emission)
+                   <|> Push <$> (reserved "push" *> identifier) 
+                            <*> (semi *> identifier) 
+                            <*> (semi *> emission)
+
 context :: Parser Context
-context = do { reserved "context"
-             ; name <- identifier
-             ; reserved "as"
-             ; ctype <- dataTypeRef
-             ; char '{'
-             ; behavioralContract <- sepEndBy behavioralContract semi
-             ; char '}'
-             ; return (Context name ctype behavioralContract)
-             }
+context = Context <$> (reserved "context" *> identifier) 
+                  <*> (reserved "as" *> dataTypeRef) 
+                  <*> braces (sepEndBy behavioralContract semi)
           
 parseDocument :: String -> Either ParseError Document
 parseDocument s = runLex document s
 
 runLex :: Show a => Parser a -> String -> Either ParseError a
-runLex p input
-  = runParser ( do { whiteSpace
-                   ; x <- p
-                   ; eof
-                   ; return x
-                   }) () "" input
+runLex p = parse (whiteSpace *> p) ""
 
 -- Sample expressions
 
@@ -132,12 +90,12 @@ data CompilationUnit = CompilationUnit { cuName :: String
 
 generateCompilationUnits :: Document -> [CompilationUnit]
 generateCompilationUnits doc@(Document ctxts) = generateCUs  doc ctxts
-
--- how can I make this function hidden inside
--- generateCompilationUnits? I tried with 'where' but failed
-generateCUs :: Document -> [Context] -> [CompilationUnit]
-generateCUs doc (car : cdr)  = transform doc car : generateCUs doc cdr
-generateCUs doc [] = []
+  -- it works for me to put it in a where clause
+  where generateCUs doc (car : cdr)  = transform doc car : generateCUs doc cdr
+        generateCUs doc [] = []
 
 transform :: Document -> Context -> CompilationUnit
 transform doc ctxt = CompilationUnit "" ""
+
+-- main function : make it compile
+main = print mainParse
