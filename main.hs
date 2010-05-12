@@ -8,21 +8,21 @@ import Text.ParserCombinators.Parsec.Language (haskellDef)
 data Document = Document [Context]
               deriving Show
 
-data PrimitiveDataType = String | Integer | Boolean
-                       deriving Show
+data DataType = String | Integer | Boolean | UserDT String
+                deriving Show
   
 data Context = Context { ctName :: String 
-                       , ctType :: PrimitiveDataType
+                       , ctType :: DataType
                        , ctBehavioralContracts :: [BehavioralContract] }
              deriving Show
 
-data BehavioralContract = Pull { ctActivation :: String
-                               , ctDataRequirement :: String
-                               , ctEmission :: Emission
+data BehavioralContract = Pull { bcActivation :: String
+                               , bcDataRequirement :: String
+                               , bcEmission :: Emission
                                }
-                        | Push { ctActivation :: String
-                               , ctDataRequirement :: String
-                               , ctEmission :: Emission
+                        | Push { bcActivation :: String
+                               , bcDataRequirement :: String
+                               , bcEmission :: Emission
                                }
                           deriving Show
 
@@ -48,7 +48,7 @@ document = do { contexts <- many context
               ; return (Document contexts)
               }
 
-dataTypeRef :: Parser PrimitiveDataType
+dataTypeRef :: Parser DataType
 dataTypeRef = do { reserved "Boolean"
                  ; return Boolean
                  }
@@ -107,19 +107,37 @@ context = do { reserved "context"
              ; return (Context name ctype behavioralContract)
              }
           
-parseDocument :: String -> IO ()
+parseDocument :: String -> Either ParseError Document
 parseDocument s = runLex document s
 
-runLex :: Show a => Parser a -> String -> IO ()
+runLex :: Show a => Parser a -> String -> Either ParseError a
 runLex p input
-  = parseTest ( do { whiteSpace
+  = runParser ( do { whiteSpace
                    ; x <- p
                    ; eof
                    ; return x
-                   }) input
+                   }) () "" input
 
 -- Sample expressions
 
 mainParse = parseDocument "\
-\context Tre as Boolean {<push D; val; empty>} \
+\context Tre as Boolean {<push D; val; empty>}\
 \context Tre as Boolean {<pull self; val; empty>}"
+
+-- Generator
+
+data CompilationUnit = CompilationUnit { cuName :: String
+                                       , cuContent :: String
+                                       }
+
+generateCompilationUnits :: Document -> [CompilationUnit]
+generateCompilationUnits doc@(Document ctxts) = generateCUs  doc ctxts
+
+-- how can I make this function hidden inside
+-- generateCompilationUnits? I tried with 'where' but failed
+generateCUs :: Document -> [Context] -> [CompilationUnit]
+generateCUs doc (car : cdr)  = transform doc car : generateCUs doc cdr
+generateCUs doc [] = []
+
+transform :: Document -> Context -> CompilationUnit
+transform doc ctxt = CompilationUnit "" ""
