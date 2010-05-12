@@ -5,6 +5,9 @@ import qualified Text.ParserCombinators.Parsec.Token as P
 import Text.ParserCombinators.Parsec.Language (haskellDef)
 
 -- AST
+data Document = Document [Context]
+              deriving Show
+
 data PrimitiveDataType = String | Integer | Boolean
                        deriving Show
   
@@ -26,7 +29,7 @@ data BehavioralContract = Pull { ctActivation :: String
 data Emission = EmitEmpty | EmitSelf | EmitSelfOpt
               deriving Show
   
--- Parser
+-- Lexer
 lexer = P.makeTokenParser haskellDef
 
 whiteSpace= P.whiteSpace lexer
@@ -38,6 +41,12 @@ semi = P.semi lexer
 identifier= P.identifier lexer
 reserved = P.reserved lexer
 reservedOp= P.reservedOp lexer
+
+-- Parser
+document :: Parser Document
+document = do { contexts <- many context
+              ; return (Document contexts)
+              }
 
 dataTypeRef :: Parser PrimitiveDataType
 dataTypeRef = do { reserved "Boolean"
@@ -98,10 +107,19 @@ context = do { reserved "context"
              ; return (Context name ctype behavioralContract)
              }
           
+parseDocument :: String -> IO ()
+parseDocument s = runLex document s
+
 runLex :: Show a => Parser a -> String -> IO ()
 runLex p input
-  = parseTest (do{ whiteSpace
-           ; x <- p
-           ; eof
-           ; return x
-           }) input
+  = parseTest ( do { whiteSpace
+                   ; x <- p
+                   ; eof
+                   ; return x
+                   }) input
+
+-- Sample expressions
+
+mainParse = parseDocument "\
+\context Tre as Boolean {<push D; val; empty>} \
+\context Tre as Boolean {<pull self; val; empty>}"
