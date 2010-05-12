@@ -17,7 +17,7 @@ data Context = Context { ctName :: String
                        , ctBehavioralContracts :: [BehavioralContract] }
              deriving Show
 
-data BehavioralContract = Pull { bcDataRequirement :: String -- I guess you don't need bcActivation for Pull if it's always "self"
+data BehavioralContract = Pull { bcDataRequirement :: String
                                , bcEmission :: Emission
                                }
                         | Push { bcActivation :: String
@@ -89,10 +89,7 @@ data CompilationUnit = CompilationUnit { cuName :: String
                                        }
 
 generateCompilationUnits :: Document -> [CompilationUnit]
-generateCompilationUnits doc@(Document ctxts) = generateCUs  doc ctxts
-  -- it works for me to put it in a where clause
-  where generateCUs doc (car : cdr)  = transform doc car : generateCUs doc cdr
-        generateCUs doc [] = []
+generateCompilationUnits doc@(Document ctxts) = map (transform doc) ctxts
 
 transform :: Document -> Context -> CompilationUnit
 transform doc ctxt = CompilationUnit "" ""
