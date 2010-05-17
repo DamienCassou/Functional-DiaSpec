@@ -1,7 +1,5 @@
 module Main where
 
--- Example generated framework
-
 -- context C1 as Boolean {
 --   <pull self; ; push self>
 -- }
@@ -9,7 +7,21 @@ module Main where
 -- Java version:
 --  abstract class AbstractC1 { Boolean get(); }
 
-data AbstractC1 = AbstractC1 {get :: Bool -> Bool}
-
+-- Haskell version:
+data AbstractC1 = AbstractC1 {get :: () -> Bool}
 
 -- Example implementation
+C1 {
+  get = true
+  }
+  
+
+-- context C2 as Boolean {  
+-- <pull self; pull C1 ; push self>
+-- }
+
+-- Boolean get(C1Closure c1);
+
+data AbstractC2 = AbstractC2 {get :: (() -> Boolean) -> 
+
+
